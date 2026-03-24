@@ -59,10 +59,15 @@ Dataset access and related resources will be released after the official publica
 If this work is relevant to your research, please cite:
 
 ```bibtex
-
+@misc{2603.01993,
+Author = {Yuchen Zhang and Yaxiong Wang and Kecheng Han and Yujiao Wu and Lianwei Wu and Li Zhu and Zhedong Zheng},
+Title = {Process Over Outcome: Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection},
+Year = {2026},
+Eprint = {arXiv:2603.01993},
+}
 ```
 
 
 ## 🤝 Acknowledgements
 
-We sincerely thank projects [DGM4](https://github.com/rshaojimmy/MultiModal-DeepFake), [FKA-Owl](https://github.com/liuxuannan/FAK-Owl), and [Florence2](https://github.com/andimarafioti/florence2-finetuning) for providing their open-source resources.
+We sincerely thank projects [DGM4](https://github.com/rshaojimmy/MultiModal-DeepFake) and [Florence2](https://github.com/andimarafioti/florence2-finetuning) for providing their open-source resources.
