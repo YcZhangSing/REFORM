@@ -1,4 +1,7 @@
 # Process Over Outcome for Generalizable Multimodal Manipulation Detection
+<font size=4><div align='center' > 
+    [\[📄 Paper\]](https://arxiv.org/abs/2603.01993)   
+</div></font>
 
 **REFORM** is a reasoning-driven framework for generalizable multimodal manipulation detection. Instead of only optimizing for final predictions, REFORM explicitly models the forensic reasoning process to improve robustness, interpretability, and cross-domain generalization.
 
