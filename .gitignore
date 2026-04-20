@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+
+outputs/
+wandb/
+*.log
+*.jsonl
+
+# Large local data/checkpoints should be downloaded separately.
+REFORM_ROMdataset/
+checkpoints/
+*.pt
+*.pth
+*.safetensors
+
