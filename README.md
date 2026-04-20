@@ -1,4 +1,4 @@
-# Process Over Outcome for Generalizable Multimodal Manipulation Detection
+# Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection
 
 <div align="center">
   <a href="https://arxiv.org/abs/2603.01993">Paper</a>
