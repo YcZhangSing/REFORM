@@ -222,7 +222,7 @@ If this work is relevant to your research, please cite:
 ```bibtex
 @misc{2603.01993,
 Author = {Yuchen Zhang and Yaxiong Wang and Kecheng Han and Yujiao Wu and Lianwei Wu and Li Zhu and Zhedong Zheng},
-Title = {Process Over Outcome: Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection},
+Title = {Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection},
 Year = {2026},
 Eprint = {arXiv:2603.01993},
 }
