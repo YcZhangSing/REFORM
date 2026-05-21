@@ -2,6 +2,7 @@
 
 <div align="center">
   <a href="https://arxiv.org/abs/2603.01993">Paper</a>
+  <a href="https://www.modelscope.cn/datasets/YcZhangSing/ROM">Data</a>
 </div>
 
 **REFORM** is a reasoning-driven framework for generalizable multimodal manipulation detection. Instead of only optimizing for final predictions, REFORM explicitly models the forensic reasoning process to improve robustness, interpretability, and cross-domain generalization.
