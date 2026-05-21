@@ -57,31 +57,9 @@ NYT and Guardian provide train/validation/test splits. BBC, USAToday, and Wash a
 
 Dataset download:
 
-- ROM: **TODO: add download URL**
-- REFORM checkpoints: **TODO: add download URL**
+- ROM: [ModelScope](https://www.modelscope.cn/datasets/YcZhangSing/ROM)
+- DGM4-Guardian-reasoning: [ModelScope](https://www.modelscope.cn/datasets/YcZhangSing/DGM4-Guardian-Train)
 
-After export, the dataset layout is:
-
-```text
-REFORM_ROMdataset/
-  manifest.json
-  train/
-    NYT/meta.json
-    NYT/images/
-    Guardian/meta.json
-    Guardian/images/
-  val/
-    NYT/meta.json
-    NYT/images/
-    Guardian/meta.json
-    Guardian/images/
-  test/
-    NYT/meta.json
-    Guardian/meta.json
-    BBC/meta.json
-    USAToday/meta.json
-    Wash/meta.json
-```
 
 Each metadata item keeps only:
 
@@ -96,7 +74,7 @@ Each metadata item keeps only:
 }
 ```
 
-`Internvl_out_think` is only present for the NYT and Guardian training splits.
+`Internvl_out_think` is only present for the ROM-NYT, and Guardian training splits.
 
 ### Export Local Data
 
