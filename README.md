@@ -3,12 +3,13 @@
 
 <font size=4><div align='center'>[\[📄 Paper\]](https://arxiv.org/abs/2603.01993) &nbsp; [\[🗂️ Dataset\]](https://www.modelscope.cn/datasets/YcZhangSing/ROM)</div></font>
 
-## Overview
+## 📌 Overview
 ![REFORM](assets/ACL26_ROMposter_yuchen.png)
 **REFORM** improves generalization by cultivating forensic reasoning, suggesting the value of extending multimodal manipulation detection beyond outcome-level prediction.
+
 **ROM** goes beyond binary real/fake labels by providing structured forensic reasoning supervision, enabling models to learn where, why, and how multimodal manipulations occur.
 
-## REFORM
+## 🔬 REFORM
 
 REFORM supports multimodal forensic understanding tasks including authenticity detection, fine-grained manipulation type prediction, manipulated region grounding, and forensic rationale generation.
 
@@ -20,7 +21,7 @@ The training pipeline has three stages:
 2. **Reasoning-Endowed Joint Fine-Tuning**
 3. **Constraint-Aware Policy Refinement**
 
-## Setup
+## ⚙️ Setup
 
 ```shell
 conda create -n REFORM python=3.10
@@ -42,7 +43,7 @@ The original experiments were run with a local Python environment equivalent to:
 /mnt/da36552c-a636-46f9-9a37-676e692003a2/yuchen/condaEnvs/florence2/bin/python
 ```
 
-## ROM Dataset
+## 🗂️ ROM Dataset
 
 ROM is short for **Reasoning-enhanced analysis for Omnibus Manipulation dataset**. It contains five news domains:
 
@@ -102,7 +103,7 @@ The exporter copies images, rewrites image paths to relative paths, regenerates 
 | `bg_rep&text_swap` | I. Image: Inpainted background; Text: Fully rewritten. |
 | `text_swap` | J. Image: No; Text: Fully rewritten. |
 
-## Training
+## 🏋️ Training
 
 Set these common paths first:
 
@@ -161,7 +162,7 @@ export TEST_DATA_PATHS=outputs/rl_data/guardian_val_vlm.json
 bash scripts/train_stage3_policy_refinement.sh
 ```
 
-## Inference
+## 🔍 Inference
 
 REFORM uses two decoder branches: one decoder predicts the final answer and the other generates forensic reasoning.
 
@@ -185,7 +186,7 @@ python scripts/evaluate_reform.py \
   --mode explainable
 ```
 
-## Results
+## 📊 Results
 
 REFORM achieves strong performance on multiple multimodal forensic benchmarks, including:
 
@@ -193,20 +194,20 @@ REFORM achieves strong performance on multiple multimodal forensic benchmarks, i
 - **76.65% ACC** on **DGM4**
 - **74.9 F1** on **MMFakeBench**
 
-## Citation
+## 📚 Citation
 
 If this work is relevant to your research, please cite:
 
 ```bibtex
-@misc{2603.01993,
-Author = {Yuchen Zhang and Yaxiong Wang and Kecheng Han and Yujiao Wu and Lianwei Wu and Li Zhu and Zhedong Zheng},
-Title = {Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection},
-Year = {2026},
-Eprint = {arXiv:2603.01993},
+@article{zhang2026process,
+  title={Process Over Outcome: Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection},
+  author={Zhang, Yuchen and Wang, Yaxiong and Han, Kecheng and Wu, Yujiao and Wu, Lianwei and Zhu, Li and Zheng, Zhedong},
+  journal={arXiv preprint arXiv:2603.01993},
+  year={2026},
+  url={https://arxiv.org/abs/2603.01993}
 }
 ```
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 We thank the DGM4 and Florence-2 projects for their open-source resources.
-
