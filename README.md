@@ -109,8 +109,11 @@ Set these common paths first:
 
 ```shell
 export ROM_ROOT=/path/to/REFORM_ROMdataset
-export FLORENCE_BASE=/path/to/microsoft_Florence_2_base_ft
+export REFORM_model=/path/to/REFORM/models
 ```
+
+To train REFORM, you need to download the pretrained [Florence-2 base model](https://huggingface.co/microsoft/Florence-2-base-ft/tree/main).
+After downloading, place the `pytorch_model.bin` file into the `REFORM/models/` directory.
 
 ### Stage 1: Cognitive Reasoning Warm-up
 
@@ -121,8 +124,8 @@ python scripts/train_stage1_reasoning_warmup.py \
   --train-json ${ROM_ROOT}/train/Guardian/meta.json \
   --val-json ${ROM_ROOT}/val/Guardian/meta.json \
   --dataset-root ${ROM_ROOT} \
-  --model-path ${FLORENCE_BASE} \
-  --florence-base-path ${FLORENCE_BASE} \
+  --model-path ${REFORM_model} \
+  --reform-model-path ${REFORM_model} \
   --output-dir outputs/stage1_guardian \
   --epochs 4
 ```
@@ -137,7 +140,7 @@ python scripts/train_stage2_joint_finetune.py \
   --val-json ${ROM_ROOT}/val/Guardian/meta.json \
   --dataset-root ${ROM_ROOT} \
   --model-path outputs/stage1_guardian/train_*/epoch_4 \
-  --florence-base-path ${FLORENCE_BASE} \
+  --reform-model-path ${REFORM_model} \
   --output-dir outputs/stage2_guardian \
   --epochs 13
 ```

@@ -16,7 +16,7 @@ import os
 RANK = int(os.getenv("LOCAL_RANK", 0))
 DEBUG = os.environ.get("ZYC_DEBUG_MODE", "false").lower() == "true"
 
-# 2) DataLoader 工作者数强制为 0（如果你自己构建 DataLoader）
+
 # dataloader = DataLoader(dataset, batch_size=..., num_workers=0 if DEBUG else 4)
 
 import sys
@@ -52,7 +52,7 @@ logger = logging.get_logger(__name__)
 tokenizer = None
 
 
-# GRPO训练参数
+
 @dataclass
 class GRPOScriptArguments(ScriptArguments):
     """
@@ -103,21 +103,21 @@ def extract_bbox(response):
     # print(f'input text is {text}')
     
     if match:
-        # 将匹配到的坐标转换为整数
+
         loc_x1 = int(match.group(1))
         loc_y1 = int(match.group(2))
         loc_x2 = int(match.group(3))
         loc_y2 = int(match.group(4))
-        # print('解析到的坐标是：')
+
         # print(loc_x1, loc_y1, loc_x2, loc_y2)
         return [loc_x1, loc_y1, loc_x2, loc_y2], True
     else:
-        # print('没有match')
+
         return [0, 0, 0, 0], False
 
 
 def extract_choice(response):
-    # 提取选项
+
     choice = response.split('Fake area')[0].strip()
 
     if os.getenv("DEBUG_MODE") == "true":
@@ -132,9 +132,6 @@ def extract_choice(response):
 
 
 def accuracy_reward_choice(completions, solution, **kwargs):
-    """
-    判断选择题是否一致
-    """
 
     contents = [completion[0]["content"] for completion in completions]
     
@@ -176,11 +173,6 @@ def accuracy_reward_choice(completions, solution, **kwargs):
 
 
 def BERT_reward(completions, solution, **kwargs):
-    """
-    判断选择题是否一致
-    IMAGE_TYPES = ["orig", "face_swap", "face_attribute", "full_gene", "bg_rep"] ## 对应 0，1，2，3，4
-    TEXT_TYPES = ["orig", "rewritten"] ## 对应 0，1
-    """
 
     contents = [completion[0]["content"] for completion in completions]
     fake_cls_values = kwargs.get("fake_cls", [""] * len(contents))
@@ -201,18 +193,18 @@ def BERT_reward(completions, solution, **kwargs):
             else:
                 image_label = fake_cls.replace("&text_swap", "")
             
-            ## 如果answer和label不一致，那么reason输出也认为是没有意义的
+
             if ground_truth_action != student_answer_option or student_answer_option=="": 
                 reward = 0.0
-            ## 如果answer回答对了，再处理reason输出的奖励
+
             else: 
-                ## text模态
+
                 if text_label == 'orig' and student_answer_option in ['a', 'b', 'c', 'd', 'e']:
                     reward += 0.5
                 elif text_label != 'orig' and student_answer_option in ['f', 'g', 'h', 'i', 'j']:
                     reward += 0.5
                 
-                ## image 模态
+
                 if image_label == 'orig' and student_answer_option in ['a', 'j']:
                     reward += 0.5
                 elif image_label == 'face_swap' and student_answer_option in ['b', 'f']:
@@ -243,9 +235,6 @@ def BERT_reward(completions, solution, **kwargs):
 
 
 def real_fake_reward_choice(completions, solution, **kwargs):
-    """
-    判断选择题是否一致
-    """
     contents = [completion[0]["content"] for completion in completions]
     rewards = []
     debug_mode = os.getenv("DEBUG_MODE") == "true"
@@ -261,7 +250,7 @@ def real_fake_reward_choice(completions, solution, **kwargs):
             student_answer_action = (extract_choice(content) or "").lower()
             ground_truth_action = (extract_choice(sol) or "").lower()
 
-            # 真假 判别 因为提取时使用了lower，所以用小写比较
+
             success = ground_truth_action.startswith("a.") == student_answer_action.startswith("a.")
                  
             if success and student_answer_action != "":
@@ -308,11 +297,8 @@ def iou(box1, box2):
 
 
 def accuracy_reward_bbox(completions, solution, **kwargs):
-    """
-    评估BBox或点击类问题的准确性
-    """
-    forbidden_choices = {"A", "D", "E", "H", "I", "J"}  # 不应含bbox
-    required_choices = {"B", "C", "F", "G"}            # 应含bbox
+    forbidden_choices = {"A", "D", "E", "H", "I", "J"}
+    required_choices = {"B", "C", "F", "G"}
 
     rewards = []
     contents = [completion[0]["content"] for completion in completions]
@@ -338,7 +324,7 @@ def accuracy_reward_bbox(completions, solution, **kwargs):
             
         elif choice in required_choices:
             if student_bbox_flag and gt_bbox_flag:
-                # IoU 或坐标检测
+
                 reward = iou(student_bbox, ground_truth_bbox)
             else:
                 reward = 0.0
@@ -364,11 +350,6 @@ def accuracy_reward_bbox(completions, solution, **kwargs):
 
 
 def format_reward(completions, **kwargs):
-    """
-    满足 [A. B. C. D. E. F. G. H. I. J.]开头 
-    如果‘Face’在回答中，那么回答中应该有<loc_{int(x1)}><loc_{int(y1)}><loc_{int(x2)}><loc_{int(y2)}>的坐标, extract_bbox(generated_text) 的返回为true
-
-    """
     completion_contents = [completion[0]["content"] for completion in completions]
     rewards = []
     debug_mode = os.getenv("DEBUG_MODE") == "true"
@@ -377,9 +358,9 @@ def format_reward(completions, **kwargs):
         
         reward = 0.0
         _, has_box = extract_bbox(content)
-        # 1. 必须以 [A-J]. 开头
+
         if re.match(r"^[A-J]\.", content.strip()):
-            # 2. 如果包含 "face"，必须解析到坐标
+
             if "face swap" in content.lower() or "face attribute" in content.lower():
                 if has_box:
                     reward = 1.0
@@ -388,7 +369,7 @@ def format_reward(completions, **kwargs):
                     reward = 0.0
                 else:
                     reward = 1.0
-        ## 放小一点format reward
+
         rewards.append(reward)
         if debug_mode and RANK == 0:
             log_path = os.getenv("LOG_PATH", "reward_debug.log")
@@ -399,10 +380,10 @@ def format_reward(completions, **kwargs):
 
     return rewards
 
-# 三个reward的定义
-# action_type对应的reward
-# 坐标对应的reward
-# 输出格式对应的reward
+
+
+
+
 ###  reward registry three parts
 reward_funcs_registry = {
     "accuracy_choice": accuracy_reward_choice,
@@ -410,8 +391,8 @@ reward_funcs_registry = {
     "format": format_reward,
     "real_fake_reward":real_fake_reward_choice,
     "BERT_reward":BERT_reward,
-    ## 记得 需要修改下面的script_args.reward_funcs，才能真正选择好奖励函数
-    ## 并且配置好奖励函数的权重
+
+
 }
 
 @dataclass
@@ -457,9 +438,9 @@ def main(script_args, training_args, model_args):
     V2_face_locate = "If the face is manipulated, locate the manipulated face in the image and append the results to your selected option.\nThe answer is:"
     # Get reward functions
     
-    ## 权重和reward名必须一一对应
+
     # reward_weights = [2.0, 1.0, 1.0, 5.0, 1.0] 
-    reward_weights = None ## 不定义权重，就默认使用sum
+    reward_weights = None
     script_args.reward_funcs = ['accuracy_choice','accuracy_bbox','format', 'real_fake_reward','BERT_reward']
     reward_funcs = [reward_funcs_registry[func] for func in script_args.reward_funcs]
     # reward_funcs = reward_funcs = list(reward_funcs_registry.values())
@@ -550,27 +531,27 @@ def main(script_args, training_args, model_args):
     def compute_metrics(eval_pred):
         preds, labels = eval_pred
         # print(f'preds is {preds};  labels is {labels}')
-        # 确保都是小写并去除空格
+
         preds = [p.strip().lower() for p in preds]
         labels = [l.strip().lower() for l in labels]
-        # 计算准确率
+
         correct = sum(p.startswith('a') == l.startswith('a') for p, l in zip(preds, labels))
         acc = correct / len(labels)
-        ## 与下面的training_args.metric_for_best_model要同步
+
         return {"eval_accuracy": acc}
 
     
-    ## eva版的trainer，还没改通
+
     trainer = trainer_cls(
         model=model_args.model_name_or_path,
         reward_funcs=reward_funcs,
-        reward_weights = reward_weights, ## 奖励函数的权重设置
+        reward_weights = reward_weights,
         args=training_args,
         train_dataset=splits['train'],
         eval_dataset = splits['test'],
         peft_config=get_peft_config(model_args),
         attn_implementation=model_args.attn_implementation,
-        torch_dtype="bfloat16",  # 强制使用bfloat16以匹配模型权重
+        torch_dtype="bfloat16",
         compute_metrics=compute_metrics,
         best_metric_name='eval_accuracy'
         
@@ -584,23 +565,23 @@ def main(script_args, training_args, model_args):
     #     eval_dataset = None,
     #     peft_config=get_peft_config(model_args),
     #     attn_implementation=model_args.attn_implementation,
-    #     torch_dtype="bfloat16",  # 强制使用bfloat16以匹配模型权重
+
     # )
     
-    ### 断点重训的问题，因为使用了deepspeed，deepspeed需要恢复的断点格式与HF checkpoint并不一样
-    #### 这里不知道为什么保存的是普通的HF断点，所以无法使用deepspeed重训 ***有待解决***
-    # # 查找可用 checkpoint（路径中包含 checkpoint）
+
+
+
     # checkpoint_paths = [p for p in pathlib.Path(training_args.output_dir).glob("checkpoint-*") if p.is_dir()]
 
-    # # 选最新的 checkpoint（按数字排序）
+
     # if checkpoint_paths:
     #     checkpoint_paths.sort(key=lambda x: int(x.name.split("-")[-1]))
     #     latest_checkpoint = checkpoint_paths[-1]
-    #     print(f'<-------------启用断点重训: {latest_checkpoint} ---------------->')
+
     #     trainer.train(resume_from_checkpoint=str(latest_checkpoint))
 
     # else:
-    #     print(f'<-------------不启用断点重训---------------->')
+
     #     trainer.train()
 
     trainer.train()

@@ -453,7 +453,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
                 prompts.append(item.get("problem", "ERR"))
                 labels.append(item["solution"])
 
-                # 处理图像
+
                 if "image" in item:
                     img = item["image"]
                 elif "image_path" in item and item["image_path"] is not None:
@@ -516,14 +516,14 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
 
         metrics = self.compute_metrics((all_preds, all_labels))
         
-        # 保存 metrics 到文件
+
         if self.accelerator.is_main_process:
             metrics_log_path = os.path.join(self.args.output_dir, "eval_metrics_log.txt")
             os.makedirs(self.args.output_dir, exist_ok=True)
             with open(metrics_log_path, "a", encoding="utf-8") as f:
                 f.write(f"Step {self.state.global_step}: {metrics}\n")
 
-        # 只在主进程保存最佳模型
+
         if self.accelerator.is_main_process and self.best_metric_name in metrics:
             current_value = metrics[self.best_metric_name]
             is_better = current_value > self.best_metric_value if self.greater_is_better else current_value < self.best_metric_value
@@ -559,19 +559,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         return torch.stack(per_token_logps)
     
     def _get_per_token_logps_florence(self, model, decoder_input_ids, input_ids=None, attention_mask=None, pixel_values=None):
-        """
-        计算每个 token 的 log probability（针对 Florence2 encoder-decoder）。
-        
-        参数:
-            model: Florence2 模型
-            decoder_input_ids: tensor (B, L), decoder 输入序列
-            attention_mask: tensor (B, L), decoder attention mask，可选
-            pixel_values: tensor (B, C, 768, 768), encoder 图像输入
-            
-        返回:
-            per_token_logps: tensor (B, L), 每个 token 的 log probability
-        """
-        # 调用模型，注意 Florence2 encoder-decoder 需要 decoder_input_ids。
+
         # Some custom Florence2 checkpoints assume decoder2_input_ids is a tensor whenever `self.training=True`
         # and may crash with "'bool' object has no attribute 'int'" when it's None.
         # We temporarily switch to eval mode for this rollout/logprob forward, while keeping autograd enabled.
@@ -579,7 +567,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         if was_training:
             model.eval()
         try:
-            ## 目前只需要decoder_input_ids 即 主decoder对answer概率即可，对于辅助decoder的概率获取与优化暂时不考虑
+
             outputs = model(
                 input_ids=input_ids,
                 pixel_values=pixel_values,
@@ -593,7 +581,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         
         logits = outputs.logits  # (B, L, V)
         
-        # 排除最后一个 logit，因为它预测的是下一个 token
+
         logits = logits[:, :-1, :]  # (B, L-1, V)
         target_ids = decoder_input_ids[:, 1:]  # (B, L-1)，shift one
                 
@@ -635,10 +623,10 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
                 prompts.append(item['problem'])
             else:
                 prompts.append('ERR')
-        # print("[DEBUG] prompts_text 类型:", type(prompts_text))
-        # print("[DEBUG] prompts_text 内容:", prompts_text)
+
+
                 
-        # Florence 接收 768*768尺寸的图像 所以这里直接写死为768*768即可
+
         images = []
         for x in inputs:
             if "image" in x:
@@ -682,7 +670,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         # resized_height = prompt_inputs['image_grid_thw'][0][1] * self.processing_class.image_processor.patch_size
         # resized_width = prompt_inputs['image_grid_thw'][0][2] * self.processing_class.image_processor.patch_size
         
-        # option3 for florence2 处理器可能 resize 后的图像尺寸
+
         pixel_values = prompt_inputs["pixel_values"]  # (B, C, H_resized, W_resized)
         _, _, resized_height, resized_width = pixel_values.shape
                 
@@ -714,7 +702,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
             was_training = unwrapped_model.training
             unwrapped_model.eval()
             try:
-                # REFORM 的操作： generated_ids = model.module.generate(input_ids=inputs["input_ids"], pixel_values=inputs["pixel_values"], max_new_tokens=1024, num_beams=3)
+
                 completion_ids = unwrapped_model.generate(
                     input_ids = prompt_inputs["input_ids"],
                     pixel_values = prompt_inputs["pixel_values"], 
@@ -733,13 +721,13 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         # Mask everything after the first EOS token
         # is_eos = completion_ids == self.processing_class.eos_token_id
         
-        ## 修改了completion_mask 的 计算逻辑，对florence2，将special_tokens mask掉即可
+
 
         special_tokens = torch.tensor([0, 1, 2, 3], device=completion_ids.device) # <pad>, <s>, </s>, <unk>
         completion_mask = (~torch.isin(completion_ids, special_tokens)).int()
 
         # print(f'[Debug] completion_mask:\n{completion_mask}')
-        # print(f'[Debug] completion_mask sum per batch: {completion_mask.sum(dim=1)}')  # 每条序列有效长度
+
                 
 
         # Concatenate prompt_mask with completion_mask for logit computation
@@ -771,21 +759,11 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
                         model, input_ids=prompt_ids, decoder_input_ids=completion_ids, attention_mask=completion_mask, pixel_values=pixel_values, 
                     )
                     
-        # florence2 的输出不包含 prompt 所以不需要裁剪         
+
         # ref_per_token_logps = ref_per_token_logps[:, prompt_length - 1:]
 
         # Decode the generated completions
         def clean_model_outputs_str(str_list, remove_tokens=None):
-            """
-            清理模型输出字符串列表，去掉无用 token。
-            
-            参数:
-                str_list: list of str, 模型输出文本
-                remove_tokens: list of str, 要移除的 token，默认 ['<s>', '</s>', '<pad>','unk']
-                
-            返回:
-                cleaned_list: list of str，已清理文本
-            """
             if remove_tokens is None:
                 remove_tokens = ['<s>', '</s>', '<pad>', '<unk>']
             
@@ -801,7 +779,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         
         completions = clean_model_outputs_str(self.processing_class.batch_decode(completion_ids, skip_special_tokens=False))
         
-        ## 拼接进对话形式
+
         if is_conversational(inputs[0]):
             completions = [[{"role": "assistant", "content": completion}] for completion in completions]
 
@@ -894,7 +872,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
             raise ValueError("The GRPOTrainer does not support returning outputs")
     
         # Check if we need to generate new completions or use buffered ones
-        ## 当全局步骤 global_step 能被 num_iterations 整除时，表示进入了一个新的迭代周期，需要重新生成新的 inputs。否则，使用之前缓存的 inputs 来计算损失。
+
         if self.state.global_step % self.num_iterations == 0:
             inputs = self._generate_and_score_completions(inputs, model)
             self._buffered_inputs[self._step % self.args.gradient_accumulation_steps] = inputs
@@ -912,8 +890,8 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         # attention_mask = torch.cat([prompt_mask, completion_mask], dim=1)
 
         
-        ## 这里计算每个 token 的对数概率（log probability），这是基于 Florence2 模型的输出。
-        # 具体来说，每个 token 的对数概率反映了模型在给定输入（包括图像和文本）情况下预测某个 token 的可能性。  
+
+
         per_token_logps = self._get_per_token_logps_florence(model=model, 
                                                              decoder_input_ids=completion_ids, 
                                                              input_ids=prompt_ids, 
@@ -922,7 +900,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
         # print(f'[Debug] per_token_logps is {per_token_logps}')
         # Get rid of the prompt (-1 because of the shift done in get_per_token_logps)
         
-        ## florence 2 不需要
+
         # per_token_logps = per_token_logps[:, prompt_ids.size(1) - 1:]
         
 
@@ -955,7 +933,7 @@ class REFORMNoSelfRewardGRPOTrainer(Trainer):
             per_token_loss = per_token_loss + self.beta * per_token_kl
 
             # Log KL divergence
-            ## 因为在_get_per_token_logps_florence中获取 prob的时候，对competion做了-1操作，所以这里的mask 也得这样做
+
             mask_kl = completion_mask[:, 1:] 
             # print(f'[Debug] mask_kl sum per batch: {mask_kl.sum(dim=1)}')
             mean_kl = ((per_token_kl * mask_kl).sum(dim=1) / mask_kl.sum(dim=1)).mean()

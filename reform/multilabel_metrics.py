@@ -82,7 +82,7 @@ class AveragePrecisionMeter(object):
             ap (FloatTensor): 1xK tensor, with avg precision for each class k
         """
 
-        if self.scores.numel() == 0: # 如果scores中的元素总数为0，那么直接返回0
+        if self.scores.numel() == 0:
             return 0
         ap = torch.zeros(self.scores.size(1))
         rg = torch.arange(1, self.scores.size(0)).float()
@@ -115,7 +115,7 @@ class AveragePrecisionMeter(object):
             if label == 1:
                 precision_at_i += pos_count / total_count
         if pos_count == 0:
-            precision_at_i = 0  # 或者使用 NaN, 取决于你的需求
+            precision_at_i = 0
         else:
             precision_at_i /= pos_count
         return precision_at_i
@@ -161,66 +161,66 @@ class AveragePrecisionMeter(object):
     #     CF1 = (2 * CP * CR) / (CP + CR)
     #     return OP, OR, OF1, CP, CR, CF1
 
-# 由于类别数目的改变，导致Np[k] 即某一类的预测正样本可能为0
-# 从而导致 CR 和 CF1 可能为 NaN
-# 因此加入异常处理逻辑
+
+
+
 
     def evaluation(self, scores_, targets_):
-        # 获取样本数量和类别数量
+
         n, n_class = scores_.shape
         print(f"进入evaluation，一共有{n_class}个类别")
         
-        # 过滤掉完全没有样本的类别
+
         valid_classes_mask = np.sum(targets_, axis=0) > 0
         scores_ = scores_[:, valid_classes_mask]
         targets_ = targets_[:, valid_classes_mask]
 
-        # 重新计算样本数量和类别数量
+
         n, n_class = scores_.shape
         print(f"经过过滤，有效类别数量: {n_class}")
                 
-        # 初始化类别相关的统计量
+
         Nc, Np, Ng = np.zeros(n_class), np.zeros(n_class), np.zeros(n_class)
-        # 遍历每个类别
+
         # print(f'scores_ is {scores_}')
         for k in range(n_class):
-            scores = scores_[:, k]  # 当前类别的预测分数
-            targets = targets_[:, k]  # 当前类别的真实标签
+            scores = scores_[:, k]
+            targets = targets_[:, k]
             # print(f'in k:{k}, scores is {scores}')
             # print(f'in k:{k}, targets is {targets}')
             
-            # 将目标中-1的值转换为0
+
             targets[targets == -1] = 0
             
-            # 计算每个类别的统计量
-            Ng[k] = np.sum(targets == 1)  # 正样本的数量（目标标签为1的数量）
-            Np[k] = np.sum(scores >= 0)  # 预测为正样本的数量（预测分数大于等于0的数量）
-            Nc[k] = np.sum(targets * (scores >= 0))  # 预测为正样本且真实标签为1的数量
+
+            Ng[k] = np.sum(targets == 1)
+            Np[k] = np.sum(scores >= 0)
+            Nc[k] = np.sum(targets * (scores >= 0))
             
-            # 调试输出每个类别的统计信息
+
             # print(f"Category {k}:")
             # print(f"  Ng (Ground truth positives): {Ng[k]}")
             # print(f"  Np (Predicted positives): {Np[k]}")
             # print(f"  Nc (True positives): {Nc[k]}")
         
-        # 对Np为0的情况进行处理，避免除以零
+
         Np[Np == 0] = 1
         
-        # 计算总体性能指标
+
         OP = np.sum(Nc) / np.sum(Np)  # Overall precision
         OR = np.sum(Nc) / np.sum(Ng)  # Overall recall
         OF1 = (2 * OP * OR) / (OP + OR)  # Overall F1 score
         
-        # 计算每个类别的性能指标，并处理Ng为0的情况
-        # 对于CR，Ng为0的类别需要跳过或者用1替代，避免除以零
-        valid_classes = Ng > 0  # 过滤掉Ng为0的类别
+
+
+        valid_classes = Ng > 0
         CP = np.sum(Nc / Np) / n_class
-        CR = np.sum(Nc[valid_classes] / np.where(Ng[valid_classes] == 0, 1, Ng[valid_classes])) / np.sum(valid_classes)  # 类别召回率
+        CR = np.sum(Nc[valid_classes] / np.where(Ng[valid_classes] == 0, 1, Ng[valid_classes])) / np.sum(valid_classes)
         
-        # 计算加权F1得分
+
         CF1 = (2 * CP * CR) / (CP + CR)
         
-        # 打印调试信息
+
         print(f"Overall Precision (OP): {OP}")
         print(f"Overall Recall (OR): {OR}")
         print(f"Overall F1 (OF1): {OF1}")
@@ -228,6 +228,6 @@ class AveragePrecisionMeter(object):
         print(f"Category Recall (CR): {CR}")
         print(f"Category F1 (CF1): {CF1}")
         
-        # 返回最终的性能指标
+
         return OP, OR, OF1, CP, CR, CF1
 

@@ -1,8 +1,3 @@
-'''
-由于从 Pretrained reason_decoder REFORM 加载权重
-所以decoder_2相关的参数不必再显式从decoder复制
-注意观察训练时的前排输出，是否有未初始化的权值报错
-'''
 
 import os
 import math
@@ -27,32 +22,32 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 import torch
 import wandb
-## 使用wandb来管理模型训练日志
+
 from reform.rom_dataset import ROMDatasetForTraining, load_rom_json
 from sklearn.feature_extraction.text import TfidfVectorizer
 from reform import train_utils
 from inspect import isfunction
 globals().update({
-    name: func for name, func in vars(train_utils).items() if isfunction(func) ## 动态导入train_utils中的函数
+    name: func for name, func in vars(train_utils).items() if isfunction(func)
 })
 import torch.multiprocessing as mp
 print("[INFO] multiprocessing start method:", mp.get_start_method())
 
-###==<--------------参数配置区(start)--------------->==
-### bs 太小就会nan
+
+
 train_data = []
 val_data = []
 train_epoch  = 13
 train_bs = 4
 need_replace_lmHead = True
-accumulation_steps = 2 ## 注意，accumulation_steps虽好，但是会在一定程度上增加显存占用，目前accumulation_steps=8会在训练中爆显存
+accumulation_steps = 2
 save_epoch_step = 1
 need_wandb = False
-consist_warm_step = 3e4   ## 在哪一步加入一致性损失
-reason_answer_warmup=3e4  ## Reason-Answer 权重转换的步数
-## <----------- margin需要在 在 florence_init_pth 里设置好 ----------- >
-margin = 0 ## 在模型代码里改！
-## <----------- margin需要在 在 florence_init_pth 里设置好 ----------- >
+consist_warm_step = 3e4
+reason_answer_warmup=3e4
+
+margin = 0
+
 num_workers = 8
 
 train_js = None
@@ -61,13 +56,13 @@ dataset_root = None
 
 main_lr = 1e-5
 florence_init_pth = None
-florence_base_path = None
+reform_model_path = os.path.join(PROJECT_ROOT, "models")
 output_root = os.path.join(PROJECT_ROOT, "outputs", "stage2_joint_finetune")
-consist_warm_step_str = f"{consist_warm_step:.0e}".replace('+0', '') ## 科学计数法转str
-reason_answer_warmup_str = f"{reason_answer_warmup:.0e}".replace('+0', '') ## 科学计数法转str
+consist_warm_step_str = f"{consist_warm_step:.0e}".replace('+0', '')
+reason_answer_warmup_str = f"{reason_answer_warmup:.0e}".replace('+0', '')
 
 logged_task_name = f'REFORM_stage2_joint_finetune_margin{margin}_consistAdd{consist_warm_step}_RAwarm{reason_answer_warmup_str}'
-###==<--------------参数配置区(end)--------------->==
+
 
 
 def _env_flag(name, default):
@@ -78,7 +73,7 @@ def _env_flag(name, default):
 
 
 def load_runtime_config_from_env():
-    global train_js, val_js_list, dataset_root, florence_init_pth, florence_base_path
+    global train_js, val_js_list, dataset_root, florence_init_pth, reform_model_path
     global output_root, need_replace_lmHead, need_wandb, logged_task_name, num_workers
     global consist_warm_step, reason_answer_warmup
 
@@ -88,7 +83,7 @@ def load_runtime_config_from_env():
         val_js_list = val_jsons.split(os.pathsep)
     dataset_root = os.environ.get("REFORM_DATASET_ROOT", dataset_root)
     florence_init_pth = os.environ.get("REFORM_MODEL_PATH", florence_init_pth)
-    florence_base_path = os.environ.get("REFORM_FLORENCE_BASE_PATH", florence_base_path)
+    reform_model_path = os.environ.get("REFORM_REFORM_MODEL_PATH", reform_model_path)
     output_root = os.environ.get("REFORM_OUTPUT_ROOT", output_root)
     logged_task_name = os.environ.get("REFORM_TASK_NAME", logged_task_name)
     need_replace_lmHead = _env_flag("REFORM_REPLACE_LM_HEAD", need_replace_lmHead)
@@ -109,13 +104,6 @@ def cleanup():
 
 
 def get_loss_weights(current_step, total_steps=None, reason_max=1.0, reason_min=0.1):
-    """
-    在 total_steps =的训练区间内
-    reason loss 权重从 1.0 平滑衰减到 0.1
-    answer loss 权重则从约 0.1 或 0.2 上升到 1.0
-    consist loss 的权重从约1e-5上升到0.1
-    形成一个渐进的“主次权重切换”过程。
-    """
     if total_steps is None:
         total_steps = reason_answer_warmup
     if current_step>total_steps:
@@ -136,7 +124,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
     device = torch.device(f"cuda:{rank}")
     print(f'使用这些  {device}  设备开始训练')
     
-    # 实例化用于二分类损失计算的交叉熵损失函数
+
     criterion = torch.nn.CrossEntropyLoss() 
     
     if run_name is None:
@@ -174,17 +162,17 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
     option_vectors = vectorizer.transform(options).toarray()
     
     if need_replace_lmHead:
-        ## 替换model中的lm_head相关权重
-        if florence_base_path is None:
-            raise ValueError("--florence-base-path is required when --replace-lm-head is enabled")
-        base_model = AutoModelForCausalLM.from_pretrained(florence_base_path, trust_remote_code=True)
-        # 1️⃣ 深拷贝 Florence-2 的 lm_head 参数
-        base_lm_head_weight = base_model.language_model.lm_head.weight.data.clone()
-        base_logits_bias = base_model.language_model.final_logits_bias.data.clone() 
+
+        if reform_model_path is None:
+            raise ValueError("--reform-model-path is required when --replace-lm-head is enabled")
+        reform_model = AutoModelForCausalLM.from_pretrained(reform_model_path, trust_remote_code=True)
+
+        reform_model_lm_head_weight = reform_model.language_model.lm_head.weight.data.clone()
+        reform_model_logits_bias = reform_model.language_model.final_logits_bias.data.clone() 
 
 
-        # 删除 base_model 节省显存
-        del base_model
+
+        del reform_model
         torch.cuda.empty_cache()
         
         # Load the model and processor
@@ -192,18 +180,18 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
             florence_init_pth, trust_remote_code=True
         ).to(device)
         
-        # 校验形状
-        assert base_lm_head_weight.shape == model.language_model.lm_head.weight.shape, \
-            f"Shape mismatch: {base_lm_head_weight.shape} vs {model.language_model.lm_head.weight.shape}"
-        assert base_logits_bias.shape == model.language_model.final_logits_bias.shape, \
-            f"Bias shape mismatch: {base_logits_bias.shape} vs {model.language_model.final_logits_bias.shape}"
 
-        # 执行覆盖
+        assert reform_model_lm_head_weight.shape == model.language_model.lm_head.weight.shape, \
+            f"Shape mismatch: {reform_model_lm_head_weight.shape} vs {model.language_model.lm_head.weight.shape}"
+        assert reform_model_logits_bias.shape == model.language_model.final_logits_bias.shape, \
+            f"Bias shape mismatch: {reform_model_logits_bias.shape} vs {model.language_model.final_logits_bias.shape}"
+
+
         with torch.no_grad():
-            model.language_model.lm_head.weight.copy_(base_lm_head_weight)
-            model.language_model.final_logits_bias.copy_(base_logits_bias)
+            model.language_model.lm_head.weight.copy_(reform_model_lm_head_weight)
+            model.language_model.final_logits_bias.copy_(reform_model_logits_bias)
 
-        print("✅ Florence lm_head 与 final_logits_bias 已成功恢复为原始权重")
+        print("REFORM model lm_head and final_logits_bias restored successfully")
 
     else:
         # Load the model and processor
@@ -215,50 +203,50 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
 
     
     def Unfreeze_model(model):
-        # 解冻 encoder
+
         for param in model.language_model.model.encoder.parameters():
             param.requires_grad = True
-        # answer encoder 的 lm也要解冻
+
         for param in model.language_model.lm_head.parameters():
             param.requires_grad = True
 
-        # 解冻 decoder
+
         for param in model.language_model.model.decoder.parameters():
             param.requires_grad = True
 
-        # 解冻 learnable_tokens
+
         model.language_model.model.learnable_tokens.requires_grad = True
 
-        # 解冻 classifier
+
 
         for param in model.language_model.model.classifier.parameters():
             param.requires_grad = True
 
-        # 解冻 Dubl_alpha
+
         model.language_model.model.Dubl_alpha.requires_grad = True
 
-        # 解冻 attn_linear 和 attn_weight
+
         for param in model.language_model.model.attn_linear.parameters():
             param.requires_grad = True
             
         for param in model.language_model.model.attn_weight.parameters():
             param.requires_grad = True
 
-        # 解冻 Bbox_Verification
+
         for param in model.language_model.model.Bbox_Verification.parameters():
             param.requires_grad = True
 
-        # 解冻 gnn 和 gnn2
+
         for param in model.language_model.model.gnn.parameters():
             param.requires_grad = True
         for param in model.language_model.model.gnn2.parameters():
             param.requires_grad = True
 
-    # 保险起见，显示执行解冻操作
+
     Unfreeze_model(model)
     
 
-    # # --- [新增] 参数统计 (仅 rank 0 打印) ---
+
     # if rank == 0:
     #     total_params = sum(p.numel() for p in model.parameters())
     #     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -316,10 +304,10 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
     for epoch in range(epochs):
         # Training phase
         model.train()        
-        ##loss_list归零初始化
+
         loss_list = []
         
-        # --- [新增] 速度测试初始化变量 ---
+
         perf_start_time = 0
         perf_sample_count = 0
         # -------------------------------
@@ -333,7 +321,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
             input_ids = inputs["input_ids"].to(device)
             pixel_values = inputs["pixel_values"].to(device)
             
-            ## 主decoder的answer label
+
             labels = processor.tokenizer(
                 text=answers,
                 return_tensors="pt",
@@ -343,7 +331,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
                 max_length=800,
             ).input_ids.to(device)
             
-            ## decoder_2的reason label
+
             reason_labels = processor.tokenizer(
                 text=reason,
                 return_tensors="pt",
@@ -358,7 +346,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
                 input_ids=input_ids, pixel_values=pixel_values, labels=labels, reason_labels = reason_labels
             )
             
-            ## 慢慢降低reason_weight的权重，同时提升answer_weight的权重
+
             reason_weight, answer_weight = get_loss_weights(global_step)
 
             # # ###
@@ -368,40 +356,40 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
             
             total_loss = answer_weight*outputs.loss + reason_weight*outputs.reason_loss
             
-            ## 正确一致性损失            
+
             if global_step > consist_warm_step:
                 total_loss += 0.1*outputs.consistency_loss
                 
-            # else: ## 新增，让一致性损失从一开始就加入，但是随answer_reason重心转移而慢慢预热，也就是权重从0 慢慢升高到0.1
+
             #     total_loss += 0.1*answer_weight*outputs.consistency_loss
                 
 
             
-            # 生成二分类标签
+
             Binary_lables = []
             for label in answers:
                 if label.lower().startswith('a'):
-                    Binary_lables.append(1)  # 正样本
+                    Binary_lables.append(1)
                 else:
-                    Binary_lables.append(0)  # 负样本
-            # 转换为 PyTorch 张量
+                    Binary_lables.append(0)
+
             Binary_lables = torch.tensor(Binary_lables, dtype=torch.long).to(device)
 
             logits_list = outputs.classification_logits_list
-            ### 这里loss_list列表的使用还可以优化
+
             for i,logits in enumerate(logits_list):
                 if logits is not None:
                     torch.cuda.synchronize()
                     if i == 0:
-                        temp_loss0 = criterion(logits,Binary_lables) # 计算二分类的二值交叉熵损失, image query
-                        total_loss += 0.1*temp_loss0 ##给二分类加个权
+                        temp_loss0 = criterion(logits,Binary_lables)
+                        total_loss += 0.1*temp_loss0
                         loss_list.append(temp_loss0)
                         
-                    if i == 1: #是output_coord
+                    if i == 1:
                         output_coords = logits.to(device)
                         tensor_fake_image_box = torch.cat(fake_image_box, dim=0).reshape(len(fake_image_box), -1).to(device)
-                        loss_bbox, loss_giou = get_bbox_loss(output_coords, tensor_fake_image_box) ## output_coords是归一化后的坐标
-                        total_loss += 0.1*(loss_bbox+loss_giou) ##给坐标损失加个权
+                        loss_bbox, loss_giou = get_bbox_loss(output_coords, tensor_fake_image_box)
+                        total_loss += 0.1*(loss_bbox+loss_giou)
                         loss_list.append(loss_bbox)
                         loss_list.append(loss_giou)
                 else:
@@ -409,16 +397,16 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
 
             total_loss = total_loss / accumulation_steps            
             # -------------------------------------------
-            # 前 (accumulation_steps - 1) 次不进行梯度同步
-            # DDP 训练中，默认每次backward()都会进行多卡通讯，为下一步的optimizer做准备
-            # 但是使用梯度累积的话，没必要每次backward都通讯，白白浪费时间
+
+
+
             # -------------------------------------------
             if (step + 1) % accumulation_steps != 0:
                 with model.no_sync():
                     total_loss.backward()
             else:
                 total_loss.backward()
-                # 梯度裁剪（可选）
+
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
                 lr_scheduler.step()
@@ -466,7 +454,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
                     output_dir = os.path.join(out_put_prefix, f"train_{train_time}_{logged_task_name}/best_ckpt")
                     os.makedirs(output_dir, exist_ok=True)
                     save_model(model, processor, output_dir, optimizer=None, lr_scheduler=None, epoch=None)
-                                                # 创建并保存 best_info.txt 文件
+
                     best_info_path = os.path.join(output_dir, "best_info.txt")
                     
                     with open(best_info_path, "w") as f:
@@ -483,7 +471,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
             os.makedirs(output_dir, exist_ok=True)
             
             # save_model(model, processor, output_dir, optimizer=optimizer, lr_scheduler=lr_scheduler, epoch=epoch)
-            save_model(model, processor, output_dir, optimizer=None, lr_scheduler=None, epoch=epoch) ##不保存优化器状态
+            save_model(model, processor, output_dir, optimizer=None, lr_scheduler=None, epoch=epoch)
             
             
 
@@ -495,7 +483,7 @@ def train_model(rank, world_size, dataset_name, train_time, batch_size=6, use_lo
 
 
 def main(train_time,local_train_name):
-    global train_js, val_js_list, dataset_root, florence_init_pth, florence_base_path
+    global train_js, val_js_list, dataset_root, florence_init_pth, reform_model_path
     global output_root, need_replace_lmHead, need_wandb, logged_task_name
     global num_workers, consist_warm_step, reason_answer_warmup
 
@@ -505,10 +493,10 @@ def main(train_time,local_train_name):
     parser.add_argument("--val-json", nargs="+", required=True, help="One or more ROM validation meta.json files")
     parser.add_argument("--dataset-root", default=None, help="Root of REFORM_ROMdataset for relative image paths")
     parser.add_argument("--model-path", required=True, help="Stage-1 checkpoint, normally epoch_4")
-    parser.add_argument("--florence-base-path", default=None, help="Base Florence-2 checkpoint used to restore lm_head")
+    parser.add_argument("--reform-model-path", default=reform_model_path, help="Modified REFORM model directory used to restore lm_head")
     parser.add_argument("--output-dir", default=output_root, help="Directory for checkpoints and logs")
     parser.add_argument("--task-name", default=logged_task_name)
-    parser.add_argument("--batch-size", type=int, default=train_bs, help="Batch size for training") ## batch_size设置成5刚好跑到23G显存左右，这个batchsize指的是一张卡的size
+    parser.add_argument("--batch-size", type=int, default=train_bs, help="Batch size for training")
     parser.add_argument("--use-lora", action='store_true', help="Use LoRA if this flag is passed")
     parser.add_argument("--epochs", type=int, default=train_epoch, help="Number of epochs to train for")
     parser.add_argument("--lr", type=float, default=main_lr, help="Learning rate")
@@ -528,7 +516,7 @@ def main(train_time,local_train_name):
     val_js_list = args.val_json
     dataset_root = args.dataset_root
     florence_init_pth = args.model_path
-    florence_base_path = args.florence_base_path
+    reform_model_path = args.reform_model_path
     output_root = args.output_dir
     need_replace_lmHead = args.replace_lm_head
     need_wandb = args.wandb
@@ -544,8 +532,8 @@ def main(train_time,local_train_name):
     if dataset_root:
         os.environ["REFORM_DATASET_ROOT"] = dataset_root
     os.environ["REFORM_MODEL_PATH"] = florence_init_pth
-    if florence_base_path:
-        os.environ["REFORM_FLORENCE_BASE_PATH"] = florence_base_path
+    if reform_model_path:
+        os.environ["REFORM_REFORM_MODEL_PATH"] = reform_model_path
     os.environ["REFORM_OUTPUT_ROOT"] = output_root
     os.environ["REFORM_TASK_NAME"] = logged_task_name
     os.environ["REFORM_REPLACE_LM_HEAD"] = str(need_replace_lmHead)
@@ -554,7 +542,7 @@ def main(train_time,local_train_name):
     os.environ["REFORM_CONSIST_WARM_STEP"] = str(consist_warm_step)
     os.environ["REFORM_REASON_ANSWER_WARMUP"] = str(reason_answer_warmup)
     
-    ## 几个GPU就用几个world_size
+
     world_size = args.world_size or torch.cuda.device_count()
     # world_size = 1
     
@@ -568,6 +556,6 @@ def main(train_time,local_train_name):
 if __name__ == "__main__":
     
     train_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    local_train_name = f'{logged_task_name}_{train_time}' ##wandb上的任务名 
+    local_train_name = f'{logged_task_name}_{train_time}'
     
     main(train_time,local_train_name)
