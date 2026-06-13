@@ -1,7 +1,8 @@
 # Cultivating Forensic Reasoning for Generalizable Multimodal Manipulation Detection
 
 
-<font size=4><div align='center'>[\[📄 Paper\]](https://arxiv.org/abs/2603.01993) &nbsp; [\[🗂️ Dataset\]](https://www.modelscope.cn/datasets/YcZhangSing/ROM)</div></font>
+<font size=4><div align='center'>[[📄 Paper]](https://arxiv.org/abs/2603.01993)   [[🗂️ Dataset]](https://www.modelscope.cn/datasets/YcZhangSing/ROM)   [[🤖 Model]](https://www.modelscope.cn/models/YcZhangSing/REFORM)</div></font>
+
 
 ## 📌 Overview
 ![REFORM](assets/ACL26_ROMposter_yuchen.png)
@@ -165,6 +166,12 @@ export TEST_DATA_PATHS=outputs/rl_data/guardian_val_vlm.json
 bash scripts/train_stage3_policy_refinement.sh
 ```
 
+
+
+
+
+
+
 ## 🔍 Inference
 
 REFORM uses two decoder branches: one decoder predicts the final answer and the other generates forensic reasoning.
@@ -188,6 +195,8 @@ python scripts/evaluate_reform.py \
   --dataset-root ${ROM_ROOT} \
   --mode explainable
 ```
+We provide REFORM weight files trained on specific domains. You can download them from the following links: [[🤖 Model]](https://www.modelscope.cn/models/YcZhangSing/REFORM)
+
 
 ## 📊 Results
 
